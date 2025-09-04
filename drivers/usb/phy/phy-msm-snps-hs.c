@@ -280,6 +280,12 @@ unconfig_vdd:
 	if (ret)
 		dev_err(phy->phy.dev, "Unable unconfig VDD:%d\n",
 								ret);
+	/* Return from here based on power_enabled. If it is not set
+	 * then return -EINVAL since either set_voltage or
+	 * regulator_enable failed
+	 */
+	if (!phy->power_enabled)
+		return -EINVAL;
 err_vdd:
 	phy->power_enabled = false;
 	dev_dbg(phy->phy.dev, "HSUSB PHY's regulators are turned OFF.\n");

@@ -343,7 +343,6 @@ struct drv2624_data {
 	unsigned char mRAMLSB;
 	unsigned char mRAMMSB;
 	int effects_count;
-
 	int mnEffectType;
 	unsigned char mnFwRam[DRV2624_RAM_SIZE];
 	unsigned int mnEffectTimems[EFFECT_MAX_NUM];

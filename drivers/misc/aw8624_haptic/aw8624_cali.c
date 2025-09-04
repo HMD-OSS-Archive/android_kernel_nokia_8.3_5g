@@ -39,7 +39,7 @@ static int aw8624_write_cali_lra_to_file(char cali_lra){
 		return -EINVAL;
 	}
 	vfs_write(fp, buf, 4, &pos);
-	snprintf(buf, PAGE_SIZE, "%d", cali_lra);
+	snprintf(buf, 50, "%d", cali_lra);
 
 	fs = get_fs();
 	set_fs(KERNEL_DS);

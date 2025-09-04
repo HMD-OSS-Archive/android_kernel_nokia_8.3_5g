@@ -1,11 +1,11 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/linux-event-codes.h>
 #include <dt-bindings/iio/qcom,spmi-vadc.h>
-#include "lagoon-thermal-overlay.dtsi"
 #include "lagoon-audio-overlay.dtsi"
 #include "lagoon-sde-display.dtsi"
 #include "camera/lagoon-camera-sensor-mtp.dtsi"
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+#include "lagoon-thermal-overlay.dtsi"
 
 &soc {
 	gpio_keys {

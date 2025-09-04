@@ -1,5 +1,8 @@
 /*
- * Copyright (C) 2016-2020 Huaqin, Inc.
+ * Copyright (C) 2016-2017 Hisense, Inc.
+ *
+ * Author:
+ *   qiuxudong <qiuxudong@hisense.com>
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -60,7 +63,7 @@ static uint cpu_reg_read(u32 add)
 static void fuse_set_into_productinfo(void)
 {
 	uint fuse = 0, anti = 0, stag2 = 0;
-	bool fuse_is_stag1 = false, fuse_is_stag2 = false, fuse_is_anti = false;
+	bool fuse_is_stag1 = false,fuse_is_stag2 = false, fuse_is_anti = false;
 
 	u32 valid_num = fuse_status.fuse_valid_num;
 
@@ -68,7 +71,7 @@ static void fuse_set_into_productinfo(void)
 	anti = cpu_reg_read(fuse_status.fuse_anti);
 	stag2 = cpu_reg_read(fuse_status.fuse_stag2);
     pr_err("efuse state fuse = %u anti = %u stag2 = %d valid_num = %u/n", fuse, anti, stag2, valid_num);
-	fuse_is_stag1 = (valid_num == fuse) ? true : false;
+        fuse_is_stag1 = (valid_num == fuse) ? true : false;
 	fuse_is_stag2 = ((stag2 & EFUSE_STAG2_VALID) == EFUSE_STAG2_VALID) ? true : false;
 	fuse_is_anti = (anti == EFUSE_ANTI_VALID) ? true : false;
 
@@ -192,4 +195,5 @@ static void fuse_status_exit(void)
 
 module_init(fuse_status_init);
 module_exit(fuse_status_exit);
+
 

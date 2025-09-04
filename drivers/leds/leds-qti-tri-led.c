@@ -19,7 +19,6 @@
 #include <linux/regmap.h>
 #include <linux/types.h>
 
-
 #define TRILED_REG_TYPE			0x04
 #define TRILED_REG_SUBTYPE		0x05
 #define TRILED_REG_EN_CTL		0x46

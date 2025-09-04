@@ -76,7 +76,7 @@
 			 <&clock_audio_rx_2 0>;
 		qcom,rx-swr-gpios = <&rx_swr_gpios>;
 		qcom,rx_mclk_mode_muxsel = <0x033240D8>;
-		qcom,rx-bcl-pmic-params = /bits/ 8 <0x00 0x04 0x3E>;
+		qcom,rx-bcl-pmic-params = /bits/ 8 <0x00 0x02 0x1E>;
 		qcom,default-clk-id = <TX_CORE_CLK>;
 		swr1: rx_swr_master {
 			compatible = "qcom,swr-mstr";
@@ -119,7 +119,7 @@
 		clocks = <&clock_audio_wsa_1 0>,
 			 <&clock_audio_wsa_2 0>;
 		qcom,wsa-swr-gpios = <&wsa_swr_gpios>;
-		qcom,wsa-bcl-pmic-params = /bits/ 8 <0x00 0x04 0x3E>;
+		qcom,wsa-bcl-pmic-params = /bits/ 8 <0x00 0x02 0x1E>;
 		qcom,default-clk-id = <TX_CORE_CLK>;
 		swr0: wsa_swr_master {
 			compatible = "qcom,swr-mstr";
@@ -275,53 +275,6 @@
 					   "cdc-vddio",
 					   "cdc-vdd-mic-bias";
 		qcom,cdc-on-demand-supplies = "cdc-vdd-buck";
-	};
-
-	wcd937x_codec: wcd937x-codec {
-		status = "disabled";
-		compatible = "qcom,wcd937x-codec";
-		qcom,split-codec = <1>;
-		qcom,rx_swr_ch_map = <0 HPH_L 0x1 0 HPH_L>,
-			<0 HPH_R 0x2 0 HPH_R>, <1 CLSH 0x1 0 CLSH>,
-			<2 COMP_L 0x1 0 COMP_L>, <2 COMP_R 0x2 0 COMP_R>,
-			<3 LO 0x1 0 LO>, <4 DSD_L 0x1 0 DSD_L>,
-			<4 DSD_R 0x2 0 DSD_R>;
-		qcom,tx_swr_ch_map = <0 ADC1 0x1 0 ADC1>,
-			<1 ADC2 0x1 0 ADC3>, <1 ADC3 0x2 0 ADC4>,
-			<2 DMIC0 0x1 0 DMIC0>, <2 DMIC1 0x2 0 DMIC1>,
-			<2 MBHC 0x4 0 DMIC2>, <3 DMIC2 0x1 0 DMIC4>,
-			<3 DMIC3 0x2 0 DMIC5>, <3 DMIC4 0x4 0 DMIC6>,
-			<3 DMIC5 0x8 0 DMIC7>;
-
-		qcom,wcd-rst-gpio-node = <&wcd938x_rst_gpio>;
-		qcom,rx-slave = <&wcd937x_rx_slave>;
-		qcom,tx-slave = <&wcd937x_tx_slave>;
-
-		cdc-vdd-rxtx-supply = <&L11A>;
-		qcom,cdc-vdd-rxtx-voltage = <1800000 1800000>;
-		qcom,cdc-vdd-rxtx-current = <30000>;
-
-		cdc-vddio-supply = <&L11A>;
-		qcom,cdc-vddio-voltage = <1800000 1800000>;
-		qcom,cdc-vddio-current = <30000>;
-
-		cdc-vdd-buck-supply = <&L14A>;
-		qcom,cdc-vdd-buck-voltage = <1800000 1800000>;
-		qcom,cdc-vdd-buck-current = <650000>;
-
-		cdc-vdd-mic-bias-supply = <&BOB>;
-		qcom,cdc-vdd-mic-bias-voltage = <3296000 3296000>;
-		qcom,cdc-vdd-mic-bias-current = <30000>;
-
-		qcom,cdc-micbias1-mv = <1800>;
-		qcom,cdc-micbias2-mv = <1800>;
-		qcom,cdc-micbias3-mv = <1800>;
-		qcom,cdc-micbias4-mv = <1800>;
-
-		qcom,cdc-static-supplies = "cdc-vdd-rxtx",
-					   "cdc-vddio",
-					   "cdc-vdd-buck",
-					   "cdc-vdd-mic-bias";
 	};
 
 };

@@ -1258,7 +1258,8 @@ static int mmc_select_hs400(struct mmc_card *card)
 		goto out_err;
 
 	val = EXT_CSD_DDR_BUS_WIDTH_8;
-	if (card->ext_csd.strobe_support) {
+	if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS400ES
+			&& card->ext_csd.strobe_support) {
 		err = mmc_select_bus_width(card);
 		if (IS_ERR_VALUE((unsigned long)err))
 			return err;
@@ -1293,7 +1294,9 @@ static int mmc_select_hs400(struct mmc_card *card)
 	mmc_set_timing(host, MMC_TIMING_MMC_HS400);
 	mmc_set_bus_speed(card);
 
-	if (card->ext_csd.strobe_support && host->ops->enhanced_strobe) {
+	if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS400ES
+			&& card->ext_csd.strobe_support
+			&& host->ops->enhanced_strobe) {
 		err = host->ops->enhanced_strobe(host);
 		if (!err)
 			host->ios.enhanced_strobe = true;
@@ -1611,8 +1614,7 @@ static int mmc_select_timing(struct mmc_card *card)
 		goto bus_speed;
 
 	/* For Enhance Strobe HS400 flow */
-	if (card->ext_csd.strobe_support &&
-	    card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS400 &&
+	if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS400ES &&
 	    card->host->caps & MMC_CAP_8_BIT_DATA) {
 		err = mmc_select_hs400(card);
 		if (err) {
@@ -2349,9 +2351,12 @@ static int mmc_sleepawake(struct mmc_host *host, bool sleep)
 	 * If the max_busy_timeout of the host is specified, validate it against
 	 * the sleep cmd timeout. A failure means we need to prevent the host
 	 * from doing hw busy detection, which is done by converting to a R1
-	 * response instead of a R1B.
+	 * response instead of a R1B. Note, some hosts requires R1B, which also
+	 * means they are on their own when it comes to deal with the busy
+	 * timeout.
 	 */
-	if (host->max_busy_timeout && (timeout_ms > host->max_busy_timeout)) {
+	if (!(host->caps & MMC_CAP_NEED_RSP_BUSY) && host->max_busy_timeout &&
+	    (timeout_ms > host->max_busy_timeout)) {
 		cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
 	} else {
 		cmd.flags = MMC_RSP_R1B | MMC_CMD_AC;
@@ -2699,14 +2704,14 @@ static int mmc_suspend(struct mmc_host *host)
  */
 static int _mmc_resume(struct mmc_host *host)
 {
-	int err = -EINVAL;
+	int err = 0;
 	int retries = 3;
 
 	mmc_claim_host(host);
 
 	if (!mmc_card_suspended(host->card)) {
 		mmc_release_host(host);
-		goto out;
+		return err;
 	}
 
 	mmc_log_string(host, "Enter\n");
@@ -2721,7 +2726,7 @@ static int _mmc_resume(struct mmc_host *host)
 						mmc_hostname(host), __func__,
 						err);
 		}
-		if (err) {
+		if (!mmc_can_sleepawake(host) || err) {
 			err = mmc_init_card(host, host->card->ocr, host->card);
 			if (err) {
 				pr_err("%s: MMC card re-init failed rc = %d (retries = %d)\n",
@@ -2746,7 +2751,7 @@ static int _mmc_resume(struct mmc_host *host)
 	if (err)
 		pr_err("%s: %s: fail to resume clock scaling (%d)\n",
 			mmc_hostname(host), __func__, err);
-out:
+
 	return err;
 }
 

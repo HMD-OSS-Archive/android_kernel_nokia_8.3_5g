@@ -43,9 +43,6 @@
 #include "../clk/clk.h"
 #define CREATE_TRACE_POINTS
 #include <trace/events/trace_msm_low_power.h>
-#ifdef CONFIG_OEM_GPIO_DUMP
-#include <linux/gpio/driver.h>
-#endif
 
 #define SCLK_HZ (32768)
 #define PSCI_POWER_STATE(reset) (reset << 30)
@@ -126,14 +123,8 @@ static bool print_parsed_dt;
 module_param_named(print_parsed_dt, print_parsed_dt, bool, 0664);
 
 static bool sleep_disabled;
-
 module_param_named(sleep_disabled, sleep_disabled, bool, 0664);
 
-#ifdef CONFIG_OEM_GPIO_DUMP
-static bool gpio_sleep_debug;
-
-module_param_named(gpio_sleep_debug, gpio_sleep_debug, bool, 0664);
-#endif
 /**
  * msm_cpuidle_get_deep_idle_latency - Get deep idle latency value
  *
@@ -1130,14 +1121,6 @@ static int cluster_configure(struct lpm_cluster *cluster, int idx,
 	}
 
 	if (level->notify_rpm) {
-#ifdef CONFIG_OEM_GPIO_DUMP
-		if (gpio_sleep_debug) {
-			clock_debug_print_enabled();
-			regulator_debug_print_enabled();
-			gpio_dump();
-		}
-#endif
-
 		cpu = get_next_online_cpu(from_idle);
 		cpumask_copy(&cpumask, cpumask_of(cpu));
 		clear_predict_history();
@@ -1220,7 +1203,8 @@ static void cluster_prepare(struct lpm_cluster *cluster,
 	if (cluster_configure(cluster, i, from_idle, predicted))
 		goto failed;
 
-	cluster->stats->sleep_time = start_time;
+	if (!IS_ERR_OR_NULL(cluster->stats))
+		cluster->stats->sleep_time = start_time;
 	cluster_prepare(cluster->parent, &cluster->num_children_in_sync, i,
 			from_idle, start_time);
 
@@ -1228,7 +1212,8 @@ static void cluster_prepare(struct lpm_cluster *cluster,
 	return;
 failed:
 	spin_unlock(&cluster->sync_lock);
-	cluster->stats->sleep_time = 0;
+	if (!IS_ERR_OR_NULL(cluster->stats))
+		cluster->stats->sleep_time = 0;
 }
 
 static void cluster_unprepare(struct lpm_cluster *cluster,
@@ -1267,7 +1252,7 @@ static void cluster_unprepare(struct lpm_cluster *cluster,
 	if (!first_cpu || cluster->last_level == cluster->default_level)
 		goto unlock_return;
 
-	if (cluster->stats->sleep_time)
+	if (!IS_ERR_OR_NULL(cluster->stats) && cluster->stats->sleep_time)
 		cluster->stats->sleep_time = end_time -
 			cluster->stats->sleep_time;
 	lpm_stats_cluster_exit(cluster->stats, cluster->last_level, success);
@@ -1377,7 +1362,7 @@ static bool psci_enter_sleep(struct lpm_cpu *cpu, int idx, bool from_idle)
 		if (cpu->bias)
 			biastimer_start(cpu->bias);
 		stop_critical_timings();
-		wfi();
+		cpu_do_idle();
 		start_critical_timings();
 		return true;
 	}
@@ -1419,7 +1404,7 @@ static int lpm_cpuidle_select(struct cpuidle_driver *drv,
 	return cpu_power_select(dev, cpu);
 }
 
-void update_ipi_history(int cpu)
+static void update_ipi_history(int cpu)
 {
 	struct ipi_history *history = &per_cpu(cpu_ipi_history, cpu);
 	ktime_t now = ktime_get();
@@ -1706,6 +1691,9 @@ static void register_cluster_lpm_stats(struct lpm_cluster *cl,
 
 	cl->stats = lpm_stats_config_level(cl->cluster_name, level_name,
 			cl->nlevels, parent ? parent->stats : NULL, NULL);
+	if (IS_ERR_OR_NULL(cl->stats))
+		pr_info("Cluster (%s) stats not registered\n",
+			cl->cluster_name);
 
 	kfree(level_name);
 
@@ -1853,13 +1841,15 @@ static int lpm_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
+	set_update_ipi_history_callback(update_ipi_history);
+
 	/* Add lpm_debug to Minidump*/
 	strlcpy(md_entry.name, "KLPMDEBUG", sizeof(md_entry.name));
 	md_entry.virt_addr = (uintptr_t)lpm_debug;
 	md_entry.phys_addr = lpm_debug_phys;
 	md_entry.size = size;
 	md_entry.id = MINIDUMP_DEFAULT_ID;
-	if (msm_minidump_add_region(&md_entry))
+	if (msm_minidump_add_region(&md_entry) < 0)
 		pr_info("Failed to add lpm_debug in Minidump\n");
 
 	return 0;

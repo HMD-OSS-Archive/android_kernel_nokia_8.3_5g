@@ -59,12 +59,8 @@ static void ilitek_resume_by_ddi_work(struct work_struct *work)
 	mutex_unlock(&ilits->touch_mutex);
 }
 
-extern int ilitek_probe_ok;
 void ili_resume_by_ddi(void)
 {
-	if (!ilitek_probe_ok)
-		return;
-
 	if (!resume_by_ddi_wq) {
 		ILI_INFO("resume_by_ddi_wq is null\n");
 		return;
@@ -731,7 +727,7 @@ void ili_report_handler(void)
 					lcd_recovery_flag = 1;
 					ILI_ERR("lcd_recovery_flag = %d, do LCM recovery\n", lcd_recovery_flag);
 
-				} 
+				}
 			}
 		}
 		goto out;
@@ -1031,7 +1027,7 @@ int ili_tddi_init(void)
 	ilits->boot = true;
 #endif
 
-	ilits->ws = wakeup_source_register("ili_wakelock");
+	ilits->ws = wakeup_source_register(NULL, "ili_wakelock");
 	if (!ilits->ws)
 		ILI_ERR("wakeup source request failed\n");
 

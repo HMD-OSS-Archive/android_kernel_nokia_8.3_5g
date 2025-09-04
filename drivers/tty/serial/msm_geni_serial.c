@@ -182,7 +182,7 @@ struct msm_geni_serial_port {
 	int loopback;
 	int wakeup_irq;
 	unsigned char wakeup_byte;
-	struct wakeup_source geni_wake;
+	struct wakeup_source *geni_wake;
 	void *ipc_log_tx;
 	void *ipc_log_rx;
 	void *ipc_log_pwr;
@@ -483,6 +483,7 @@ static void wait_for_transfers_inflight(struct uart_port *uport)
 	int iter = 0;
 	struct msm_geni_serial_port *port = GET_DEV_PORT(uport);
 	unsigned int geni_status;
+	bool CTS, RX;
 
 	geni_status = geni_read_reg_nolog(uport->membase, SE_GENI_STATUS);
 	/* Possible stop rx is called before this. */
@@ -506,10 +507,12 @@ static void wait_for_transfers_inflight(struct uart_port *uport)
 							SE_GENI_RX_FIFO_STATUS);
 		u32 rx_dma =
 			geni_read_reg_nolog(uport->membase, SE_DMA_RX_LEN_IN);
+		CTS = geni_ios & BIT(1); // b[1] = UART CTS <- Peer RFR
+		RX = geni_ios & BIT(0);  // b[0] = UART RX <- Peer TX
 
 		IPC_LOG_MSG(port->ipc_log_misc,
-			"%s IOS 0x%x geni status 0x%x rx: fifo 0x%x dma 0x%x\n",
-		__func__, geni_ios, geni_status, rx_fifo_status, rx_dma);
+		"%s: geni=0x%x rx_fifo=0x%x rx_dma=0x%x, CTS_IO=%d, RX_IO=%d\n",
+		 __func__, geni_status, rx_fifo_status, rx_dma, CTS, RX);
 	}
 }
 
@@ -1450,7 +1453,6 @@ static void stop_rx_sequencer(struct uart_port *uport)
 	port->s_cmd = true;
 	reinit_completion(&port->s_cmd_timeout);
 
-
 	IPC_LOG_MSG(port->ipc_log_misc, "%s: Start 0x%x\n",
 		    __func__, geni_status);
 	/*
@@ -1767,7 +1769,7 @@ static int msm_geni_serial_handle_dma_tx(struct uart_port *uport)
 		 */
 		if (!uart_console(uport)) {
 			IPC_LOG_MSG(msm_port->ipc_log_misc,
-				"%s.Power Off.\n", __func__);
+				"%s.Tx sent out, Power off\n", __func__);
 			msm_geni_serial_power_off(uport);
 		}
 		uart_write_wakeup(uport);
@@ -1813,7 +1815,12 @@ static void msm_geni_serial_handle_isr(struct uart_port *uport,
 						SE_GENI_S_IRQ_CLEAR);
 	m_irq_en = geni_read_reg_nolog(uport->membase, SE_GENI_M_IRQ_EN);
 	if ((m_irq_status & M_ILLEGAL_CMD_EN)) {
-		WARN_ON(1);
+		if (uart_console(uport))
+			IPC_LOG_MSG(msm_port->console_log,
+				"%s.Illegal interrupt. sirq 0x%x mirq:0x%x\n",
+				 __func__, s_irq_status, m_irq_status);
+		else
+			WARN_ON(1);
 		goto exit_geni_serial_isr;
 	}
 
@@ -1988,7 +1995,7 @@ static irqreturn_t msm_geni_wakeup_isr(int isr, void *dev)
 					__func__, port->wakeup_byte);
 		port->edge_count = 0;
 		tty_flip_buffer_push(tty->port);
-		__pm_wakeup_event(&port->geni_wake, WAKEBYTE_TIMEOUT_MSEC);
+		__pm_wakeup_event(port->geni_wake, WAKEBYTE_TIMEOUT_MSEC);
 	} else if (port->edge_count < 2) {
 		port->edge_count++;
 	}
@@ -3192,7 +3199,17 @@ static int msm_geni_serial_probe(struct platform_device *pdev)
 		}
 	}
 
-	wakeup_source_init(&dev_port->geni_wake, dev_name(&pdev->dev));
+	if (!is_console) {
+		dev_port->geni_wake = wakeup_source_register(uport->dev,
+						dev_name(&pdev->dev));
+		if (!dev_port->geni_wake) {
+			dev_err(&pdev->dev,
+				"Failed to register wakeup_source\n");
+			ret = -ENOMEM;
+			goto exit_geni_serial_probe;
+		}
+	}
+
 	dev_port->tx_fifo_depth = DEF_FIFO_DEPTH_WORDS;
 	dev_port->rx_fifo_depth = DEF_FIFO_DEPTH_WORDS;
 	dev_port->tx_fifo_width = DEF_FIFO_WIDTH_BITS;
@@ -3206,7 +3223,7 @@ static int msm_geni_serial_probe(struct platform_device *pdev)
 	if (uport->irq < 0) {
 		ret = uport->irq;
 		dev_err(&pdev->dev, "Failed to get IRQ %d\n", ret);
-		goto exit_geni_serial_probe;
+		goto exit_wakeup_unregister;
 	}
 
 	dev_port->name = devm_kasprintf(uport->dev, GFP_KERNEL,
@@ -3217,7 +3234,7 @@ static int msm_geni_serial_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(uport->dev, "%s: Failed to get IRQ ret %d\n",
 							__func__, ret);
-		goto exit_geni_serial_probe;
+		goto exit_wakeup_unregister;
 	}
 
 	uport->private_data = (void *)drv;
@@ -3255,10 +3272,20 @@ static int msm_geni_serial_probe(struct platform_device *pdev)
 	dev_port->port_setup = false;
 	ret = msm_geni_serial_get_ver_info(uport);
 	if (ret)
-		goto exit_geni_serial_probe;
+		goto exit_wakeup_unregister;
 
 	ret = uart_add_one_port(drv, uport);
+	if (ret)
+		goto exit_wakeup_unregister;
 
+	IPC_LOG_MSG(dev_port->ipc_log_misc, "%s: port:%s irq:%d\n", __func__,
+		    uport->name, uport->irq);
+
+	return 0;
+
+exit_wakeup_unregister:
+	if (!is_console)
+		wakeup_source_unregister(dev_port->geni_wake);
 exit_geni_serial_probe:
 	IPC_LOG_MSG(dev_port->ipc_log_misc, "%s: ret:%d\n", __func__, ret);
 	return ret;
@@ -3270,7 +3297,8 @@ static int msm_geni_serial_remove(struct platform_device *pdev)
 	struct uart_driver *drv =
 			(struct uart_driver *)port->uport.private_data;
 
-	wakeup_source_trash(&port->geni_wake);
+	if (!uart_console(&port->uport))
+		wakeup_source_unregister(port->geni_wake);
 	uart_remove_one_port(drv, &port->uport);
 	if (port->rx_dma) {
 		geni_se_iommu_free_buf(port->wrapper_dev, &port->rx_dma,
@@ -3315,7 +3343,7 @@ static int msm_geni_serial_runtime_suspend(struct device *dev)
 		enable_irq(port->wakeup_irq);
 	}
 	IPC_LOG_MSG(port->ipc_log_pwr, "%s:\n", __func__);
-	__pm_relax(&port->geni_wake);
+	__pm_relax(port->geni_wake);
 exit_runtime_suspend:
 	return ret;
 }
@@ -3330,8 +3358,8 @@ static int msm_geni_serial_runtime_resume(struct device *dev)
 	 * Do an unconditional relax followed by a stay awake in case the
 	 * wake source is activated by the wakeup isr.
 	 */
-	__pm_relax(&port->geni_wake);
-	__pm_stay_awake(&port->geni_wake);
+	__pm_relax(port->geni_wake);
+	__pm_stay_awake(port->geni_wake);
 	if (port->wakeup_irq > 0)
 		disable_irq(port->wakeup_irq);
 	/*
@@ -3343,7 +3371,7 @@ static int msm_geni_serial_runtime_resume(struct device *dev)
 	ret = se_geni_resources_on(&port->serial_rsc);
 	if (ret) {
 		dev_err(dev, "%s: Error ret %d\n", __func__, ret);
-		__pm_relax(&port->geni_wake);
+		__pm_relax(port->geni_wake);
 		goto exit_runtime_resume;
 	}
 	start_rx_sequencer(&port->uport);

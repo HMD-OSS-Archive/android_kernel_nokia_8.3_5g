@@ -46,7 +46,7 @@ enum hardware_id{
 	HWID_UFS,
 	HWID_UFS_MORE,
 	HWID_UFS_WP,
-	HWID_EFUSE,
+       	HWID_EFUSE,
 
 	HWID_LCM = 0x20,
 	HWID_SUB_LCM,

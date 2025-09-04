@@ -2,7 +2,7 @@ qcom,ATL466271_3300mAh {
 	/* ATL466271_3300mAh_averaged_MasterSlave_Jun12th2019 */
 	qcom,max-voltage-uv = <4400000>;
 	qcom,fg-cc-cv-threshold-uv = <4390000>;
-	qcom,fastchg-current-ma = <4000>;
+	qcom,fastchg-current-ma = <3000>;
 	qcom,batt-id-kohm = <100>;
 	qcom,battery-beta = <3435>;
 	qcom,battery-therm-kohm = <10>;

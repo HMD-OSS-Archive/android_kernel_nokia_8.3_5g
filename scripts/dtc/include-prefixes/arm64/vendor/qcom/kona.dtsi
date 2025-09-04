@@ -347,7 +347,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7";
+		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off";
 	};
 
 	firmware: firmware {
@@ -2445,6 +2445,7 @@
 		#clock-cells = <1>;
 		mboxes = <&qmp_aop 0>;
 		mbox-names = "qdss_clk";
+		qcom,clk-stop-bimc-log;
 	};
 
 	clock_gcc: qcom,gcc@100000 {
@@ -2784,6 +2785,7 @@
 		sw-reset = <&gpu_gx_sw_reset>;
 		parent-supply = <&VDD_GFX_LEVEL>;
 		vdd_parent-supply = <&VDD_GFX_LEVEL>;
+		qcom,skip-disable-before-sw-enable;
 		qcom,reset-aon-logic;
 		qcom,retain-regs;
 	};
@@ -3001,34 +3003,10 @@
 		};
 	};
 
-	ufs_ice: ufsice@1d90000 {
-		compatible = "qcom,ice";
-		reg = <0x1d90000 0x8000>;
-		qcom,enable-ice-clk;
-		clock-names = "ufs_core_clk", "bus_clk",
-				"iface_clk", "ice_core_clk";
-		clocks = <&clock_gcc GCC_UFS_PHY_AXI_CLK>,
-			<&clock_gcc GCC_UFS_1X_CLKREF_EN>,
-			<&clock_gcc GCC_UFS_PHY_AHB_CLK>,
-			<&clock_gcc GCC_UFS_PHY_ICE_CORE_CLK>;
-		qcom,op-freq-hz = <0>, <0>, <0>, <300000000>;
-		vdd-hba-supply = <&ufs_phy_gdsc>;
-		qcom,msm-bus,name = "ufs_ice_noc";
-		qcom,msm-bus,num-cases = <2>;
-		qcom,msm-bus,num-paths = <1>;
-		qcom,msm-bus,vectors-KBps =
-				<1 650 0 0>,    /* No vote */
-				<1 650 1000 0>; /* Max. bandwidth */
-		qcom,bus-vector-names = "MIN",
-					"MAX";
-		qcom,instance-type = "ufs";
-	};
-
 	ufsphy_mem: ufsphy_mem@1d87000 {
-		reg = <0x1d87000 0xe00>; /* PHY regs */
-		reg-names = "phy_mem";
+		reg = <0x1d87000 0xe00>, <0x1d90000 0x8000>; /* PHY regs */
+		reg-names = "phy_mem", "ufs_ice";
 		#phy-cells = <0>;
-		ufs-qcom-crypto = <&ufs_ice>;
 
 		lanes-per-direction = <2>;
 
@@ -3042,11 +3020,11 @@
 
 	ufshc_mem: ufshc@1d84000 {
 		compatible = "qcom,ufshc";
-		reg = <0x1d84000 0x3000>;
+		reg = <0x1d84000 0x3000>, <0x1d90000 0x8000>;
+		reg-names = "ufs_mem", "ufs_ice";
 		interrupts = <GIC_SPI 265 IRQ_TYPE_LEVEL_HIGH>;
 		phys = <&ufsphy_mem>;
 		phy-names = "ufsphy";
-		ufs-qcom-crypto = <&ufs_ice>;
 
 		lanes-per-direction = <2>;
 		dev-ref-clk-freq = <0>; /* 19.2 MHz */
@@ -4531,6 +4509,21 @@
 			qcom,dump-size = <0x1000>;
 			qcom,dump-id = <0x104>;
 		};
+
+		osm_reg {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x163>;
+		};
+
+		pcu_reg {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x164>;
+		};
+
+		fsm_data {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x165>;
+		};
 	};
 
 	qcom_tzlog: tz-log@146bf720 {
@@ -4730,9 +4723,10 @@
 		cnss-daemon-support;
 		qcom,cmd_db_name = "smpf2";
 		qcom,set-wlaon-pwr-ctrl;
+		cnss-enable-self-recovery;
 
 		qcom,msm-bus,name = "msm-cnss";
-		qcom,msm-bus,num-cases = <6>;
+		qcom,msm-bus,num-cases = <7>;
 		qcom,msm-bus,num-paths = <1>;
 		qcom,msm-bus,vectors-KBps =
 		/* no vote */
@@ -4746,7 +4740,9 @@
 		/* high: 240 - 800 Mbps, ddr freq: 451.2 MHz */
 		<MSM_BUS_MASTER_PCIE MSM_BUS_SLAVE_FIRST 100000 1804800>,
 		/* very high: 800 - 1400 Mbps, ddr freq: 1555.2 MHz */
-		<MSM_BUS_MASTER_PCIE MSM_BUS_SLAVE_FIRST 175000 6220800>;
+		<MSM_BUS_MASTER_PCIE MSM_BUS_SLAVE_FIRST 175000 6220800>,
+		/* low (latency critical): 18 - 60 Mbps, ddr freq: 547.2 MHz */
+		<MSM_BUS_MASTER_PCIE MSM_BUS_SLAVE_FIRST 7500 2188800>;
 
 		vdd-wlan-aon-supply = <&pm8150_s6>;
 		qcom,vdd-wlan-aon-config = <950000 950000 0 0 1>;
@@ -4856,6 +4852,15 @@
 				mhi,msi = <2>;
 				mhi,priority = <1>;
 				mhi,brstmode = <2>;
+			};
+
+			mhi_event@2 {
+				mhi,num-elements = <32>;
+				mhi,intmod = <1>;
+				mhi,msi = <0>;
+				mhi,priority = <2>;
+				mhi,brstmode = <2>;
+				mhi,data-type = <3>;
 			};
 		};
 

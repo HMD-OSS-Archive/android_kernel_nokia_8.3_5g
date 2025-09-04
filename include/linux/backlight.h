@@ -120,26 +120,13 @@ struct backlight_device {
 	int use_count;
 };
 
-static inline void print_set_backlight_state(u32 bl_level)
-{
-	static int last_level;
-
-	if ((last_level == 0) || (bl_level == 0)) {
-		pr_info("Backlight: set backlight from %d to %d\n",
-			last_level, bl_level);
-		last_level = bl_level;
-	}
-}
-
 static inline int backlight_update_status(struct backlight_device *bd)
 {
 	int ret = -ENOENT;
 
 	mutex_lock(&bd->update_lock);
-	if (bd->ops && bd->ops->update_status) {
-		print_set_backlight_state(bd->props.brightness);
+	if (bd->ops && bd->ops->update_status)
 		ret = bd->ops->update_status(bd);
-	}
 	mutex_unlock(&bd->update_lock);
 
 	return ret;

@@ -325,7 +325,6 @@ static irqreturn_t ilitek_plat_isr_top_half(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-
 	if (ilits->prox_near) {
 		ILI_INFO("Proximity event, ignore interrupt!\n");
 		return IRQ_HANDLED;
@@ -515,7 +514,6 @@ static int ilitek_charger_notifier_callback(struct notifier_block *nb,
 	struct power_supply *psy = NULL;
 	union power_supply_propval prop;
 
-
 	if(ilits->fw_update_stat != 100)
 		return 0;
 	if (!ilitek_probe_ok)
@@ -572,6 +570,7 @@ void ilitek_plat_charger_init(void)
 	if (ret < 0)
 		ILI_ERR("power_supply_reg_notifier failed\n");
 }
+
 
 static BLOCKING_NOTIFIER_HEAD(ear_notifier_list);
 

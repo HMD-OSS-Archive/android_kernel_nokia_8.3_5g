@@ -66,7 +66,7 @@ pxlw,mdss_iris_cfg {
     /*cm*/
     //0a  fa  00
     /*peaking*/
-    0c  fa  00	
+    0c  fa  00
   ];
   pxlw,iris-lightup-sequence = [
     /*sys*/

@@ -59,8 +59,7 @@ static struct adreno_device device_3d0 = {
 	.long_ib_detect = 1,
 	.input_work = __WORK_INITIALIZER(device_3d0.input_work,
 		adreno_input_work),
-	.pwrctrl_flag = BIT(ADRENO_SPTP_PC_CTRL) |
-		BIT(ADRENO_THROTTLING_CTRL) | BIT(ADRENO_HWCG_CTRL),
+	.pwrctrl_flag = BIT(ADRENO_THROTTLING_CTRL) | BIT(ADRENO_HWCG_CTRL),
 	.profile.enabled = false,
 	.active_list = LIST_HEAD_INIT(device_3d0.active_list),
 	.active_list_lock = __SPIN_LOCK_UNLOCKED(device_3d0.active_list_lock),
@@ -832,6 +831,17 @@ static int adreno_identify_gpu(struct adreno_device *adreno_dev)
 	}
 
 	/*
+	 * Some GPUs needs UCHE GMEM base address to be minimum 0x100000
+	 * and 1MB aligned. Configure UCHE GMEM base based on GMEM size
+	 * and align it one 1MB. This needs to be done based on GMEM size
+	 * because setting it to minimum value 0x100000 will result in RB
+	 * and UCHE GMEM range overlap for GPUs with GMEM size >1MB.
+	 */
+	if (!adreno_is_a650_family(adreno_dev))
+		adreno_dev->uche_gmem_base =
+			ALIGN(adreno_dev->gpucore->gmem_size, SZ_1M);
+
+	/*
 	 * Initialize uninitialzed gpu registers, only needs to be done once
 	 * Make all offsets that are not initialized to ADRENO_REG_UNUSED
 	 */
@@ -983,6 +993,26 @@ static int adreno_of_parse_pwrlevels(struct adreno_device *adreno_dev,
 	return 0;
 }
 
+static void adreno_of_get_bimc_iface_clk(struct adreno_device *adreno_dev,
+		struct device_node *node)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
+
+	/* Getting gfx-bimc-interface-clk frequency */
+	if (!of_property_read_u32(node, "qcom,gpu-bimc-interface-clk-freq",
+				&pwr->gpu_bimc_int_clk_freq)) {
+		pwr->gpu_bimc_int_clk = devm_clk_get(&device->pdev->dev,
+				"bimc_gpu_clk");
+		if (IS_ERR_OR_NULL(pwr->gpu_bimc_int_clk)) {
+			dev_err(&device->pdev->dev,
+					"dt: Couldn't get bimc_gpu_clk (%d)\n",
+					PTR_ERR(pwr->gpu_bimc_int_clk));
+			pwr->gpu_bimc_int_clk = NULL;
+		}
+	}
+}
+
 static void adreno_of_get_initial_pwrlevel(struct adreno_device *adreno_dev,
 		struct device_node *node)
 {
@@ -1040,6 +1070,8 @@ static int adreno_of_get_legacy_pwrlevels(struct adreno_device *adreno_dev,
 
 	adreno_of_get_limits(adreno_dev, parent);
 
+	adreno_of_get_bimc_iface_clk(adreno_dev, parent);
+
 	return 0;
 }
 
@@ -1066,6 +1098,8 @@ static int adreno_of_get_pwrlevels(struct adreno_device *adreno_dev,
 				return ret;
 
 			adreno_of_get_initial_pwrlevel(adreno_dev, child);
+
+			adreno_of_get_bimc_iface_clk(adreno_dev, child);
 
 			/*
 			 * Check for global throttle-pwrlevel first and override
@@ -1341,15 +1375,15 @@ static int adreno_read_speed_bin(struct platform_device *pdev,
 	}
 
 	buf = nvmem_cell_read(cell, &len);
+	nvmem_cell_put(cell);
+
 	if (!IS_ERR(buf)) {
 		memcpy(&adreno_dev->speed_bin, buf,
 				min(len, sizeof(adreno_dev->speed_bin)));
 		kfree(buf);
 	}
 
-	nvmem_cell_put(cell);
-
-	return 0;
+	return PTR_ERR_OR_ZERO(buf);
 }
 
 static int adreno_probe_efuse(struct platform_device *pdev,
@@ -1431,6 +1465,14 @@ static int adreno_probe(struct platform_device *pdev)
 
 	if (adreno_is_a6xx(adreno_dev))
 		device->mmu.features |= KGSL_MMU_SMMU_APERTURE;
+
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_USE_SHMEM))
+		device->flags |= KGSL_FLAG_USE_SHMEM;
+
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_PROCESS_RECLAIM)) {
+		device->flags |= KGSL_FLAG_USE_SHMEM;
+		device->flags |= KGSL_FLAG_PROCESS_RECLAIM;
+	}
 
 	device->pwrctrl.bus_width = adreno_dev->gpucore->bus_width;
 
@@ -2435,6 +2477,14 @@ int adreno_reset(struct kgsl_device *device, int fault)
 		}
 	}
 	if (ret) {
+		unsigned long flags = device->pwrctrl.ctrl_flags;
+
+		/*
+		 * Clear ctrl_flags to ensure clocks and regulators are
+		 * turned off
+		 */
+		device->pwrctrl.ctrl_flags = 0;
+
 		/* If soft reset failed/skipped, then pull the power */
 		kgsl_pwrctrl_change_state(device, KGSL_STATE_INIT);
 		/* since device is officially off now clear start bit */
@@ -2452,6 +2502,8 @@ int adreno_reset(struct kgsl_device *device, int fault)
 					break;
 			}
 		}
+
+		device->pwrctrl.ctrl_flags = flags;
 	}
 	if (ret)
 		return ret;
@@ -2491,7 +2543,7 @@ static int adreno_prop_device_info(struct kgsl_device *device,
 		.device_id = device->id + 1,
 		.chip_id = adreno_dev->chipid,
 		.mmu_enabled = MMU_FEATURE(&device->mmu, KGSL_MMU_PAGED),
-		.gmem_gpubaseaddr = adreno_dev->gpucore->gmem_base,
+		.gmem_gpubaseaddr = 0,
 		.gmem_sizebytes = adreno_dev->gpucore->gmem_size,
 	};
 
@@ -2565,9 +2617,9 @@ static int adreno_prop_uche_gmem_addr(struct kgsl_device *device,
 		struct kgsl_device_getproperty *param)
 {
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	u64 vaddr = adreno_dev->gpucore->gmem_base;
 
-	return copy_prop(param, &vaddr, sizeof(vaddr));
+	return copy_prop(param, &adreno_dev->uche_gmem_base,
+		sizeof(adreno_dev->uche_gmem_base));
 }
 
 static int adreno_prop_ucode_version(struct kgsl_device *device,

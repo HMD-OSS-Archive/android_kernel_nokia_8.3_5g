@@ -566,11 +566,14 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 
 		seq_puts(s, "\n");
 	} else {
-		pr_err(" %-8s: %-3s %-4s func%d %dmA",
-			g->name, is_out ? "out" : "in",
-			val ? "high" : "low", func,
-			msm_regval_to_drive(drive),
-			pctrl->soc->pull_no_keeper ? pulls_no_keeper[pull]: pulls_keeper[pull]);
+		pr_err(" %-8s: %-3s", g->name, is_out ? "out" : "in");
+		pr_err(" %-4s func%d", val ? "high" : "low", func);
+		pr_err(" %dmA", msm_regval_to_drive(drive));
+		if (pctrl->soc->pull_no_keeper)
+			pr_err(" %s", pulls_no_keeper[pull]);
+		else
+			pr_err(" %s", pulls_keeper[pull]);
+
 		pr_err("\n");
 	}
 }
@@ -593,7 +596,7 @@ static void msm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 	unsigned i;
 
 	for (i = 0; i < chip->ngpio; i++, gpio++) {
-		//pr_err("%s i=%d gpio=%d\n", __func__, i, gpio);
+		pr_err("%s i=%d gpio=%d\n", __func__, i, gpio);
 		if (check_gpio_is_protected(i))
 			continue;
 		msm_gpio_dbg_show_one(s, NULL, chip, i, gpio);

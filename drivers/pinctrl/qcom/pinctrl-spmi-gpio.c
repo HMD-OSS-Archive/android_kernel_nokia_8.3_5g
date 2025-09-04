@@ -647,18 +647,12 @@ static void pmic_gpio_config_dbg_show(struct pinctrl_dev *pctldev,
 
 	pad = pctldev->desc->pins[pin].drv_data;
 
-	if (s)
-		seq_printf(s, " gpio%-2d:", pad->gpio_idx);
-	else
-		pr_info(" gpio%-2d:", pad->gpio_idx);
+	seq_printf(s, " gpio%-2d:", pad->gpio_idx);
 
 	val = pmic_gpio_read(state, pad, PMIC_GPIO_REG_EN_CTL);
 
 	if (val < 0 || !(val >> PMIC_GPIO_REG_MASTER_EN_SHIFT)) {
-		if(s)
 		seq_puts(s, " ---");
-	else
-		pr_info(" ---");
 	} else {
 		if (pad->input_enabled) {
 			ret = pmic_gpio_read(state, pad, PMIC_MPP_REG_RT_STS);
@@ -678,7 +672,6 @@ static void pmic_gpio_config_dbg_show(struct pinctrl_dev *pctldev,
 			function += PMIC_GPIO_FUNC_INDEX_DTEST1 -
 				PMIC_GPIO_FUNC_INDEX_FUNC3;
 
-		if (s){
 		if (pad->analog_pass)
 			seq_puts(s, " analog-pass");
 		else
@@ -692,20 +685,6 @@ static void pmic_gpio_config_dbg_show(struct pinctrl_dev *pctldev,
 		seq_printf(s, " %-7s", strengths[pad->strength]);
 		seq_printf(s, " atest-%d", pad->atest);
 		seq_printf(s, " dtest-%d", pad->dtest_buffer);
-		} else {
-			if (pad->analog_pass)
-				pr_info(" analog-pass");
-			else
-				pr_info(" %-4s %-7s vin-%d %-27s %-10s %-4s %-7s atest-%d",
-						pad->output_enabled ? "out" : "in",
-						pmic_gpio_functions[function],
-						pad->power_source,
-						biases[pad->pullup],
-						buffer_types[pad->buffer_type],
-						pad->out_value ? "high" : "low",
-						strengths[pad->strength],
-						pad->atest);
-		}
 	}
 }
 
@@ -815,8 +794,7 @@ static void pmic_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 
 	for (i = 0; i < chip->ngpio; i++) {
 		pmic_gpio_config_dbg_show(state->ctrl, s, i);
-		if(s)seq_puts(s, "\n");
-		else pr_info("\n");
+		seq_puts(s, "\n");
 	}
 }
 
@@ -1174,11 +1152,24 @@ static int pmic_gpio_probe(struct platform_device *pdev)
 		goto err_free;
 	}
 
-	ret = gpiochip_add_pin_range(&state->chip, dev_name(dev), 0, 0, npins);
-	if (ret) {
-		dev_err(dev, "failed to add pin range\n, ret=%d\n", ret);
-		gpiochip_remove(&state->chip);
-		goto err_free;
+	/*
+	 * For DeviceTree-supported systems, the gpio core checks the
+	 * pinctrl's device node for the "gpio-ranges" property.
+	 * If it is present, it takes care of adding the pin ranges
+	 * for the driver. In this case the driver can skip ahead.
+	 *
+	 * In order to remain compatible with older, existing DeviceTree
+	 * files which don't set the "gpio-ranges" property or systems that
+	 * utilize ACPI the driver has to call gpiochip_add_pin_range().
+	 */
+	if (!of_property_read_bool(dev->of_node, "gpio-ranges")) {
+		ret = gpiochip_add_pin_range(&state->chip, dev_name(dev), 0, 0,
+					     npins);
+		if (ret) {
+			dev_err(dev, "failed to add pin range\n");
+			gpiochip_remove(&state->chip);
+			goto err_free;
+		}
 	}
 
 err_free:

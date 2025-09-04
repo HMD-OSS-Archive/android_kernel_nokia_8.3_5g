@@ -471,9 +471,7 @@ int vote(struct votable *votable, const char *client_str, bool enabled, int val)
 				&effective_result, &effective_id);
 		break;
 	default:
-		pr_err("the type is err, %d\n", votable->type);
-		rc = -EINVAL;
-		goto out;
+		return -EINVAL;
 	}
 
 	/*

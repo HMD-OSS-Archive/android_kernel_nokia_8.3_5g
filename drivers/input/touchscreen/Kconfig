@@ -1353,6 +1353,7 @@ source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
 
 source "drivers/input/touchscreen/focaltech_touch/Kconfig"
 
+source "drivers/input/touchscreen/nt36xxx/Kconfig"
 config TOUCH_ILI7881X_TDDI
 	bool "ILI7881X TDDI Touchscreen Driver"
 	depends on SPI_MASTER

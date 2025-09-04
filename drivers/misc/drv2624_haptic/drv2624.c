@@ -299,7 +299,6 @@ static void drv2624_firmware_load(const struct firmware *fw, void *context)
 	release_firmware(fw);
 	mutex_unlock(&pDRV2624->lock);
 }
-
 /**
  *
  * bRTP = NO == 0; Enable all interrupt of DRV2624
@@ -515,7 +514,6 @@ static void vibrator_work_routine(struct work_struct *work)
 err:
 	mutex_unlock(&pDRV2624->lock);
 }
-
 /**
  * Play Waveform sequence stored in DRV2624_REG_SEQUENCER_1
  *
@@ -541,7 +539,6 @@ static int drv2624_playEffect(struct drv2624_data *pDRV2624)
 end:
 	return nResult;
 }
-
 static void haptics_playback_work_routine(struct work_struct *work)
 {
 	int nResult = 0;

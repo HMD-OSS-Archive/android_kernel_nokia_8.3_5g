@@ -1462,7 +1462,7 @@ static int aw8624_haptic_f0_calibration(struct aw8624 *aw8624)
 	/* } */
 
 	aw8624_haptic_play_mode(aw8624, AW8624_HAPTIC_STANDBY_MODE);
-	//aw8624_haptic_play_mode(aw8624, AW8624_HAPTIC_RAM_MODE);
+//	aw8624_haptic_play_mode(aw8624, AW8624_HAPTIC_RAM_MODE);
 	aw8624_haptic_stop(aw8624);
 
 	return ret;
@@ -2233,7 +2233,6 @@ static ssize_t aw8624_cali_lra_show(struct device *dev,
 		aw8624_haptic_f0_calibration(aw8624);
 		mutex_unlock(&aw8624->lock);
 	}
-
 #if 0
 	mutex_lock(&aw8624->lock);
 	aw8624->f0_cali_flag = AW8624_HAPTIC_CALI_F0;
@@ -2243,7 +2242,6 @@ static ssize_t aw8624_cali_lra_show(struct device *dev,
 	    snprintf(buf + len, PAGE_SIZE - len, "aw8624 cali f0 = %d\n",
 		     aw8624->f0);
 #endif
-
 	return len;
 }
 
@@ -3704,7 +3702,7 @@ aw8624_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	}
 
 	g_aw8624 = aw8624;
-	aw8624->ws = wakeup_source_register("vibrator");
+	aw8624->ws = wakeup_source_register(&i2c->dev, "vibrator");
 	if (!aw8624->ws)
 		return -ENOMEM;
 	

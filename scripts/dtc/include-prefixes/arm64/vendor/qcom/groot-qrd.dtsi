@@ -104,15 +104,14 @@
 		pinctrl-2 = <&msm_gpio_112>;
 	};
 
-	cpu_fuse_state {
-		compatible = "qcom,cpu-fused";
-		qcom,fuse-reg = <0x007805e8>;
-		qcom,fuse-anti = <0x007801e4>;
-		qcom,fuse-stag2 = <0x007801c0>;
-		qcom,fuse-valid-num = <0x00303030>;
-		status = "okay";
-	};
-
+        cpu_fuse_state {
+               compatible = "qcom,cpu-fused";
+               qcom,fuse-reg = <0x007805e8>;
+               qcom,fuse-anti = <0x007801e4>;
+               qcom,fuse-stag2 = <0x007801c0>;
+               qcom,fuse-valid-num = <0x00303030>;
+               status = "okay";
+       };
 	boot_log_drv {
 		compatible = "debug,bootlog";
 		linux,contiguous-region = <&bootlog_mem>;
@@ -548,6 +547,7 @@
 		};
 	};
 
+
 	xo-therm-step {
 		polling-delay-passive = <2000>;
 		polling-delay = <0>;
@@ -606,7 +606,7 @@
                                 temperature = <100000>;
                                 hysteresis = <130000>;
                                 type = "passive";
-                        };
+			};
 
 		};
 

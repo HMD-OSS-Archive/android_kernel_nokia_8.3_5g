@@ -33,7 +33,6 @@ static HW_INFO(HWID_DDR, ram);
 static HW_INFO(HWID_UFS, ufs);
 static HW_INFO(HWID_UFS_MORE, ufs_more);
 static HW_INFO(HWID_UFS_WP, ufs_wp);
-static HW_INFO(HWID_EFUSE, efuse);
 static HW_INFO(HWID_LCM, lcm);
 static HW_INFO(HWID_CTP, ctp);
 static HW_INFO(HWID_MAIN_CAM, main_cam);
@@ -46,7 +45,7 @@ static HW_INFO(HWID_ALSPS, alsps);
 static HW_INFO(HWID_MSENSOR, msensor);
 static HW_INFO(HWID_GYRO, gyro);
 static HW_INFO(HWID_SARSENSOR, sarsensor);
-
+static HW_INFO(HWID_EFUSE, efuse);
 static HW_INFO(HWID_BATTERY, battery_manufacturer);
 static HW_INFO(HWID_SMARTPA, smartpa);
 static HW_INFO(HWID_VIBRATOR, vibrator);
